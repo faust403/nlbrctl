@@ -20,7 +20,7 @@ std::optional<int> nlbrctl::connector::open(const int domain, const int type, co
         }
 
         return 0; // ok
-    }).value();
+    });
 }
 
 // on success return 0
@@ -43,5 +43,22 @@ std::optional<int> nlbrctl::connector::close(nlbrctl::connector::opt_cb_t callba
             return std::nullopt;
         }
         return 0; // ok
-    }).value();
+    });
+}
+
+void nlbrctl::connector::add_bridge(std::string name) noexcept {
+    struct netilnk_request {
+		struct nlmsghdr  n;
+		struct ifinfomsg ifm;
+		char             buf[512];
+	} req;
+
+    req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+	req.n.nlmsg_flags = NLM_F_REQUEST;
+	req.n.nlmsg_type = RTM_SETLINK;
+	req.ifm.ifi_family = PF_BRIDGE;
+}
+
+void nlbrctl::connector::del_bridge(std::string name) noexcept {
+
 }

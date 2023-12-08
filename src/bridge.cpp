@@ -177,8 +177,32 @@ static int br_foreach_port(std::string const& brname, std::function<int(std::str
 }
 
 void nlbrctl::nl_bridge::update_interfaces(void) noexcept {
+	if(not enabled__) {
+		return;
+	}
+
+	interfaces__.clear();
+
 	br_foreach_port(this->name__, [&](std::string port) -> int {
 		interfaces__.push_front(nlbrctl::interface(port));
 		return 0;
 	});
+}
+
+void nlbrctl::nl_bridge::open(void) noexcept {
+	if(enabled__) {
+		return;
+	}
+
+	connector__.add_bridge(name__);
+	update_interfaces();
+}
+
+void nlbrctl::nl_bridge::close(void) noexcept {
+	if(not enabled__) {
+		return;
+	}
+
+	interfaces__.clear();
+	connector__.del_bridge(name__);
 }

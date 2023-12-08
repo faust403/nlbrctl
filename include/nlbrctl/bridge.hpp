@@ -1,5 +1,6 @@
 # pragma once
 
+#include "connector.hpp"
 # include <nlbrctl/connector.hpp>
 # include <nlbrctl/interface.hpp>
 
@@ -71,15 +72,18 @@ namespace nlbrctl {
             struct timeval gc_timer_value;
         };
 
+        nlbrctl::connector connector__;
+
         bridge bridge__;
         std::string name__;
+        bool enabled__ = false;
         std::list<nlbrctl::interface> interfaces__;
 
         public:
             nl_bridge(void) = delete;
 
             nl_bridge(std::string name, const bridge& c_bridge) noexcept:
-                name__(name)
+                name__(name), enabled__(true)
             {
                 memcpy(&bridge__, &c_bridge, sizeof(bridge));
 
@@ -90,8 +94,12 @@ namespace nlbrctl {
                 return name__;
             }
 
-            inline bridge c_bridge(void) const noexcept {
+            inline const bridge& c_bridge(void) const noexcept {
                 return bridge__;
+            }
+
+            inline bool enabled(void) const noexcept {
+                return enabled__;
             }
 
             inline const std::list<nlbrctl::interface>& interfaces(void) const noexcept {
@@ -110,13 +118,17 @@ namespace nlbrctl {
                 return name__.c_str();
             }
 
-            void update_interfaces(void) noexcept;
+            operator bool(void) const noexcept {
+                return enabled__;
+            }
 
-            void add_interface(std::string) noexcept;
-            void del_interface(std::string) noexcept;
+            void update_interfaces(void) noexcept;
 
             void open(void) noexcept;
             void close(void) noexcept;
+
+            void add_interface(std::string) noexcept;
+            void del_interface(std::string) noexcept;
 
             using bridge_id_t = bridge_id;
             using bridge_t = bridge;
