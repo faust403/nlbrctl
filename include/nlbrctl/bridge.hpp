@@ -1,6 +1,7 @@
 # pragma once
 
 # include <nlbrctl/connector.hpp>
+# include <nlbrctl/interface.hpp>
 
 # include <string>
 # include <cstdlib>
@@ -72,13 +73,17 @@ namespace nlbrctl {
 
         bridge bridge__;
         std::string name__;
-        // std::forward_list<interface> interfaces__; TODO
+        std::list<nlbrctl::interface> interfaces__;
 
         public:
+            nl_bridge(void) = delete;
+
             nl_bridge(std::string name, const bridge& c_bridge) noexcept:
                 name__(name)
             {
                 memcpy(&bridge__, &c_bridge, sizeof(bridge));
+
+                update_interfaces();
             }
 
             inline std::string name(void) const noexcept {
@@ -89,6 +94,10 @@ namespace nlbrctl {
                 return bridge__;
             }
 
+            inline const std::list<nlbrctl::interface>& interfaces(void) const noexcept {
+                return interfaces__;
+            }
+
             operator bridge(void) const noexcept {
                 return bridge__;
             }
@@ -96,6 +105,15 @@ namespace nlbrctl {
             operator std::string(void) const noexcept {
                 return name__;
             }
+
+            operator const char*(void) const noexcept {
+                return name__.c_str();
+            }
+
+            void update_interfaces(void) noexcept;
+
+            void add_interface(std::string) noexcept;
+            void del_interface(std::string) noexcept;
 
             void open(void) noexcept;
             void close(void) noexcept;

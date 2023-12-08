@@ -140,3 +140,45 @@ std::optional<std::list<nlbrctl::nl_bridge>> nlbrctl::get_bridges(void) noexcept
 	});
     return result;
 }
+
+static int br_foreach_port(std::string const& brname, std::function<int(std::string)>&& callback) noexcept {
+	int i, count;
+	struct dirent** namelist;
+
+	std::string path = SYSFS_CLASS_NET;
+	path += brname;
+	path += "/brif";
+
+	count = scandir(path.c_str(), &namelist, 0, alphasort);
+
+	if (count < 0) {
+		return -1; // not supporting old interfaces
+	}
+
+	for (i = 0; i < count; i++) {
+		if (namelist[i]->d_name[0] == '.'
+		    and (namelist[i]->d_name[1] == '\0'
+			or (namelist[i]->d_name[1] == '.'
+			    and namelist[i]->d_name[2] == '\0'))) {
+			continue;
+		}
+
+
+		if (callback(namelist[i]->d_name)) {
+			break;
+		}
+	}
+
+	for (i = 0; i < count; i++) {
+		free(namelist[i]);
+	}
+	free(namelist);
+	return count;
+}
+
+void nlbrctl::nl_bridge::update_interfaces(void) noexcept {
+	br_foreach_port(this->name__, [&](std::string port) -> int {
+		interfaces__.push_front(nlbrctl::interface(port));
+		return 0;
+	});
+}
