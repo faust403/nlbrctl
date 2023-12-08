@@ -3,9 +3,9 @@
 // on success return 0
 // on error return some of nlbrctl::connector::* errors
 // based on callback return value return error or 0
-std::expected<int, nlbrctl::connector::errors> nlbrctl::connector::open(const int domain, const int type, const int protocol, nlbrctl::connector::opt_cb_t callback) noexcept {
+std::optional<int> nlbrctl::connector::open(const int domain, const int type, const int protocol, nlbrctl::connector::opt_cb_t callback) noexcept {
     if(this->socket__ = ::socket(domain, type, protocol); this->socket__ < 0) { // try to open connection
-        return nlbrctl::connector::SOCKET_OPENING_ERROR;
+        return std::nullopt;
     }
 
     if(not callback.has_value()) {
@@ -16,7 +16,7 @@ std::expected<int, nlbrctl::connector::errors> nlbrctl::connector::open(const in
         if(callback(this->socket__) < 0) {
             this->close(std::nullopt);
 
-            return nlbrctl::connector::SOCKET_OPENING_ERROR;
+            return std::nullopt;
         }
 
         return 0; // ok
@@ -26,10 +26,10 @@ std::expected<int, nlbrctl::connector::errors> nlbrctl::connector::open(const in
 // on success return 0
 // on error return some of nlbrctl::connector::* errors
 // based on callback return value return error or 0
-std::expected<int, nlbrctl::connector::errors> nlbrctl::connector::close(nlbrctl::connector::opt_cb_t callback) noexcept {
+std::optional<int> nlbrctl::connector::close(nlbrctl::connector::opt_cb_t callback) noexcept {
     if(not callback.has_value()) {
         if(::close(this->socket__) < 0) {
-            return nlbrctl::connector::SOCKET_CLOSING_ERROR;
+            return std::nullopt;
         }
 
         this->socket__ = -1;
@@ -40,7 +40,7 @@ std::expected<int, nlbrctl::connector::errors> nlbrctl::connector::close(nlbrctl
         const int ret = callback(this->socket__);
 
         if(ret < 0 and ::close(this->socket__) < 0) {
-            return nlbrctl::connector::SOCKET_CLOSING_ERROR;
+            return std::nullopt;
         }
         return 0; // ok
     }).value();
