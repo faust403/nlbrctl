@@ -2,6 +2,7 @@
 # include <string>
 # include <exception>
 # include <filesystem>
+# include <fstream>
 # include <nlbrctl/bridge.hpp>
 
 // can't be boolean because of strict policy for scandir, $ man scandir
@@ -24,6 +25,19 @@ static int new_foreach_bridge(std::function<int(std::string)>&& iterator) {
 	return count;
 }
 
+static int fetch_int(std::filesystem::path const& path) noexcept {
+	std::ifstream file(path, std::ios::in);
+
+	if(not file.is_open()) {
+		return 0;
+	}
+
+	int value = 0;
+	file >> value;
+
+	return value;
+}
+
 static inline void __jiffies_to_tv(struct timeval *tv, unsigned long jiffies) {
 	unsigned long long tvusec;
 
@@ -32,78 +46,59 @@ static inline void __jiffies_to_tv(struct timeval *tv, unsigned long jiffies) {
 	tv->tv_usec = tvusec - 1000000 * tv->tv_sec;
 }
 
-static FILE* fpopen(std::string const& path) noexcept {
-	return fopen(path.c_str(), "r");
-}
-
-static int fetch_int(std::string const& path) noexcept {
-	FILE* f = fpopen(path);
-	int value = -1;
-
-	if (not f) {
-		return 0;
-	}
-
-	fscanf(f, "%i", &value);
-	fclose(f);
-	return value;
-}
-
-static nlbrctl::nl_bridge::bridge_id_t fetch_id(std::string const& path) {
-	nlbrctl::nl_bridge::bridge_id_t id;
-	FILE* f = fpopen(path);
-
-	if (not f) {
-		fprintf(stderr, "%s: %s\n", path.c_str(), strerror(errno));
-		std::terminate();
-	} else {
-		fscanf(f, "%2hhx%2hhx.%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
-		       &id.prio[0], &id.prio[1],
-		       &id.addr[0], &id.addr[1], &id.addr[2],
-		       &id.addr[3], &id.addr[4], &id.addr[5]);
-		fclose(f);
-	}
-	return id;
-}
-
-static void fetch_tv(std::string const& path, struct timeval* tv) {
+static void fetch_tv(std::filesystem::path const& path, struct timeval* tv) {
 	__jiffies_to_tv(tv, fetch_int(path));
 }
 
-static std::optional<nlbrctl::nl_bridge::bridge_t> get_bridge_info(std::string_view name) noexcept {
+static nlbrctl::nl_bridge::bridge_id_t fetch_id(std::filesystem::path const& path) {
+	nlbrctl::nl_bridge::bridge_id_t id;
+	std::ifstream file(path, std::ios::in);
+
+	if (not file.is_open()) {
+		fprintf(stderr, "%s: %s\n", path.string().c_str(), strerror(errno));
+		std::terminate();
+	}
+
+	std::string bridge_id;
+	file >> bridge_id;
+
+	std::sscanf(bridge_id.c_str(), "%2hhx%2hhx.%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
+				&id.prio[0], &id.prio[1], &id.addr[0],
+				&id.addr[1], &id.addr[2], &id.addr[3],
+				&id.addr[4], &id.addr[5]);
+	return id;
+}
+
+static std::optional<nlbrctl::nl_bridge::bridge_t> get_bridge_info(std::string const& name) noexcept {
 	nlbrctl::nl_bridge::bridge_t info;
-	DIR* dir;
+	std::filesystem::path path(SYSFS_CLASS_NET);
 
-	std::string path = SYSFS_CLASS_NET;
-	path += name.data();
-	path += "/bridge/";
+	path /= name + "/bridge/";
 
-	if(dir = opendir(path.c_str()); dir == NULL) {
+	if(not std::filesystem::exists(path)) {
 		return std::nullopt;
 	}
 
 	memset(&info, 0, sizeof(info));
-	info.designated_root = fetch_id(path + "root_id");
-	info.bridge_id = fetch_id(path + "bridge_id");
-	info.root_path_cost = fetch_int(path + "root_path_cost");
-	fetch_tv(path + "max_age", &info.max_age);
-	fetch_tv(path + "hello_time", &info.hello_time);
-	fetch_tv(path + "forward_delay", &info.forward_delay);
-	fetch_tv(path + "max_age", &info.bridge_max_age);
-	fetch_tv(path + "hello_time", &info.bridge_hello_time);
-	fetch_tv(path + "forward_delay", &info.bridge_forward_delay);
-	fetch_tv(path + "ageing_time", &info.ageing_time);
-	fetch_tv(path + "hello_timer", &info.hello_timer_value);
-	fetch_tv(path + "tcn_timer", &info.tcn_timer_value);
-	fetch_tv(path + "topology_change_timer", &info.topology_change_timer_value);;
-	fetch_tv(path + "gc_timer", &info.gc_timer_value);
+	info.designated_root = fetch_id(path/"root_id");
+	info.bridge_id = fetch_id(path/"bridge_id");
+	info.root_path_cost = fetch_int(path/"root_path_cost");
+	fetch_tv(path/"max_age", &info.max_age);
+	fetch_tv(path/"hello_time", &info.hello_time);
+	fetch_tv(path/"forward_delay", &info.forward_delay);
+	fetch_tv(path/"max_age", &info.bridge_max_age);
+	fetch_tv(path/"hello_time", &info.bridge_hello_time);
+	fetch_tv(path/"forward_delay", &info.bridge_forward_delay);
+	fetch_tv(path/"ageing_time", &info.ageing_time);
+	fetch_tv(path/"hello_timer", &info.hello_timer_value);
+	fetch_tv(path/"tcn_timer", &info.tcn_timer_value);
+	fetch_tv(path/"topology_change_timer", &info.topology_change_timer_value);;
+	fetch_tv(path/"gc_timer", &info.gc_timer_value);
 
-	info.root_port = fetch_int(path + "root_port");
-	info.stp_enabled = fetch_int(path + "stp_state");
-	info.topology_change = fetch_int(path + "topology_change");
-	info.topology_change_detected = fetch_int(path + "topology_change_detected");
-
-	closedir(dir);
+	info.root_port = fetch_int(path/"root_port");
+	info.stp_enabled = fetch_int(path/"stp_state");
+	info.topology_change = fetch_int(path/"topology_change");
+	info.topology_change_detected = fetch_int(path/"topology_change_detected");
 
 	return info;
 }
@@ -122,38 +117,24 @@ std::optional<std::list<nlbrctl::nl_bridge>> nlbrctl::get_bridges(void) noexcept
     return result;
 }
 
-static int br_foreach_port(std::string const& brname, std::function<int(std::string)>&& callback) noexcept {
-	int i, count;
-	struct dirent** namelist;
+static int foreach_bridge_interfaces(std::string const& brname, std::function<int(std::string)>&& callback) noexcept {
+	int count = 0;
+	std::filesystem::path path = SYSFS_CLASS_NET;
 
-	std::string path = SYSFS_CLASS_NET;
-	path += brname;
-	path += "/brif";
+	path /= brname + "/brif/";
 
-	count = scandir(path.c_str(), &namelist, 0, alphasort);
-
-	if (count < 0) {
-		return -1; // not supporting old interfaces
+	if(not isbridge(path)) {
+		return -1;
 	}
 
-	for (i = 0; i < count; i++) {
-		if (namelist[i]->d_name[0] == '.'
-		    and (namelist[i]->d_name[1] == '\0'
-			or (namelist[i]->d_name[1] == '.'
-			    and namelist[i]->d_name[2] == '\0'))) {
-			continue;
-		}
+	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(SYSFS_CLASS_NET)) {
+		count += 1;
 
-
-		if (callback(namelist[i]->d_name)) {
+		if(callback(dir_entry.path().stem())) {
 			break;
 		}
 	}
 
-	for (i = 0; i < count; i++) {
-		free(namelist[i]);
-	}
-	free(namelist);
 	return count;
 }
 
@@ -164,8 +145,8 @@ void nlbrctl::nl_bridge::update_interfaces(void) noexcept {
 
 	interfaces__.clear();
 
-	br_foreach_port(this->name__, [&](std::string port) -> int {
-		interfaces__.push_front(nlbrctl::interface(port));
+	foreach_bridge_interfaces(this->name__, [&](std::string port) -> int {
+		interfaces__.emplace_front(port);
 		return 0;
 	});
 }
@@ -176,7 +157,6 @@ void nlbrctl::nl_bridge::open(void) noexcept {
 	}
 
 	connector__.add_bridge(name__);
-	update_interfaces();
 }
 
 void nlbrctl::nl_bridge::close(void) noexcept {
