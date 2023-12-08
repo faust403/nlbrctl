@@ -1,53 +1,34 @@
 # include <cstdlib>
+# include <string>
 # include <exception>
+# include <filesystem>
 # include <nlbrctl/bridge.hpp>
 
 // can't be boolean because of strict policy for scandir, $ man scandir
-static int isbridge(const struct dirent* entry) {
-	char path[PATH_MAX];
-	struct stat st;
-	int ret, saved_errno;
-
-	if (entry->d_name[0] == '.' and (entry->d_name[1] == '\0' or (entry->d_name[1] == '.' and entry->d_name[2] == '\0'))) {
-		return false;
-	}
-
-	snprintf(path, PATH_MAX, SYSFS_CLASS_NET "%s/bridge", entry->d_name); // it's necessary for /sys/devices/virtual/net/example_bridge to have 'bridge' directory
-
-	saved_errno = errno;
-	ret = (stat(path, &st) == 0 and S_ISDIR(st.st_mode)); // is /sys/devices/virtual/net/example_bridge/bridge exists ?
-	errno = saved_errno;
-	return static_cast<bool>(ret);
+static int isbridge(std::filesystem::path path) {
+	return std::filesystem::exists(path/"bridge"); // it's necessary for /sys/devices/virtual/net/example_bridge to have 'bridge' directory
 }
 
 static int new_foreach_bridge(std::function<int(std::string)>&& iterator) {
-	struct dirent **namelist;
-	int i, count = 0;
+	int count = 0;
 
-	count = scandir(SYSFS_CLASS_NET, &namelist, isbridge, alphasort);
-	if (count < 0) {
-		return -1;
-	}
+	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(SYSFS_CLASS_NET)) {
+		if(isbridge(dir_entry.path())) {
+			count += 1;
 
-	for (i = 0; i < count; i++) {
-		if (iterator(namelist[i]->d_name)) {
-			break;
+			if(iterator(dir_entry.path().stem())) {
+				break;
+			}
 		}
 	}
-
-	for (i = 0; i < count; i++) {
-		free(namelist[i]);
-	}
-	free(namelist);
-
 	return count;
 }
 
 static inline void __jiffies_to_tv(struct timeval *tv, unsigned long jiffies) {
 	unsigned long long tvusec;
 
-	tvusec = 10000ULL*jiffies;
-	tv->tv_sec = tvusec/1000000;
+	tvusec = 10000ULL * jiffies;
+	tv->tv_sec = tvusec / 1000000;
 	tv->tv_usec = tvusec - 1000000 * tv->tv_sec;
 }
 
