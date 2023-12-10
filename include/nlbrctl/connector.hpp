@@ -1,5 +1,6 @@
 # pragma once
 
+#include <linux/netlink.h>
 # include <string>
 # include <cstdint>
 # include <cassert>
@@ -17,30 +18,23 @@
 # include <sys/types.h>
 # include <sys/stat.h>
 
-# include <linux/netlink.h>
 # include <linux/rtnetlink.h>
+# include <netlink/socket.h>
+# include <netlink/route/link/bridge.h>
 
 namespace nlbrctl {
     class connector {
-        int socket__;
-
-        using cb_t = std::function<int(const int)>;
-        using opt_cb_t = std::optional<cb_t>;
+        struct nl_sock* socket__;
+        struct nlmsghdr header__;
 
         public:
-            ~connector(void) noexcept {
-                this->close(std::nullopt);
-            }
+            connector(void) noexcept;
 
-            std::optional<int> open(const int, const int, const int, opt_cb_t) noexcept;
-
-            std::optional<int> close(opt_cb_t) noexcept;
+            ~connector(void) noexcept;
 
             void add_bridge(std::string) noexcept;
             void del_bridge(std::string) noexcept;
-
-            [[ nodiscard ]] inline int descriptor(void) noexcept {
-                return socket__;
-            }
+            void add_interface(std::string, std::string) noexcept;
+            void del_interface(std::string, std::string) noexcept;
     };
 }
