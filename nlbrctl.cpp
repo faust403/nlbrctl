@@ -11,12 +11,5 @@ int main(int argc, char** argv) {
 
     nlbrctl::connector connector;
     connector.add_bridge("connector_added");
-
-    nlbrctl::get_bridges()
-    .and_then([](auto&& list) noexcept -> T {
-        for(auto& item : list) {
-            std::cout << item.name() << std::endl;
-        }
-        return list;
-    });
+    connector.add_bridge("connector_added");
 }

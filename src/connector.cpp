@@ -14,16 +14,18 @@ nlbrctl::connector::~connector(void) noexcept {
 }
 
 void nlbrctl::connector::add_bridge(std::string name) noexcept {
-    header__ = {
-        .nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
-		.nlmsg_flags = NLM_F_REQUEST
-    };
-
     if(int error = rtnl_link_bridge_add(this->socket__, name.c_str()); error < 0) {
         nl_perror(error, "error when adding bridge: ");
     }
 }
 
 void nlbrctl::connector::del_bridge(std::string name) noexcept {
+    struct rtnl_link* link = rtnl_link_bridge_alloc();
 
+    rtnl_link_set_name(link, name.c_str());
+
+    if(int error = rtnl_link_delete(this->socket__, link); error < 0) {
+        nl_perror(error, "error when deleting bridge: ");
+    }
+    rtnl_link_put(link);
 }
