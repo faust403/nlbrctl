@@ -1,44 +1,12 @@
 # pragma once
 
-#include "connector.hpp"
 # include <nlbrctl/connector.hpp>
 # include <nlbrctl/interface.hpp>
 
-# include <string>
-# include <cstdlib>
-# include <iostream>
-# include <cstdint>
-# include <expected>
-# include <functional>
+# include <exception>
+# include <filesystem>
+# include <fstream>
 # include <list>
-# include <string_view>
-
-# include <stdio.h>
-# include <string.h>
-# include <stdlib.h>
-# include <unistd.h>
-# include <errno.h>
-# include <string.h>
-# include <dirent.h>
-# include <sys/types.h>
-# include <sys/stat.h>
-
-# include <net/if.h>
-extern unsigned int if_nametoindex(const char* __ifname);
-extern char* if_indextoname(unsigned int __ifindex, char* __ifname);
-
-# include <sys/types.h>
-# include <sys/socket.h>
-# include <netinet/in.h>
-# include <linux/if.h>
-# include <linux/sockios.h>
-# include <sys/time.h>
-# include <sys/ioctl.h>
-# include <linux/if_bridge.h>
-
-# define MAX_BRIDGES 1024
-# define SYSFS_PATH_MAX 256
-# define SYSFS_CLASS_NET "/sys/class/net/"
 
 namespace nlbrctl {
     class nl_bridge {
@@ -73,54 +41,54 @@ namespace nlbrctl {
             struct timeval gc_timer_value;
         };
 
-        nlbrctl::connector connector__;
+        nlbrctl::connector _connector;
 
-        bridge bridge__;
-        std::string name__;
-        bool enabled__ = false;
-        std::list<nlbrctl::interface> interfaces__;
+        bridge _bridge;
+        std::string _name;
+        bool _enabled = false;
+        std::list<nlbrctl::interface> _interfaces;
 
         public:
             nl_bridge(void) = delete;
 
             nl_bridge(std::string name, const bridge& c_bridge) noexcept:
-                name__(name), enabled__(true)
+                _name(name), _enabled(true)
             {
-                memcpy(&bridge__, &c_bridge, sizeof(bridge));
+                memcpy(&_bridge, &c_bridge, sizeof(bridge));
 
                 update_interfaces();
             }
 
             inline std::string name(void) const noexcept {
-                return name__;
+                return _name;
             }
 
             inline const bridge& c_bridge(void) const noexcept {
-                return bridge__;
+                return _bridge;
             }
 
             inline bool enabled(void) const noexcept {
-                return enabled__;
+                return _enabled;
             }
 
             inline const std::list<nlbrctl::interface>& interfaces(void) const noexcept {
-                return interfaces__;
+                return _interfaces;
             }
 
             operator bridge(void) const noexcept {
-                return bridge__;
+                return _bridge;
             }
 
             operator std::string(void) const noexcept {
-                return name__;
+                return _name;
             }
 
             operator const char*(void) const noexcept {
-                return name__.c_str();
+                return _name.c_str();
             }
 
             operator bool(void) const noexcept {
-                return enabled__;
+                return _enabled;
             }
 
             void update_interfaces(void) noexcept;
@@ -133,10 +101,6 @@ namespace nlbrctl {
 
             using bridge_id_t = bridge_id;
             using bridge_t = bridge;
-    };
-
-    enum SCAN_BRIDGES_ERRORS : std::uint8_t {
-        ERROR_SCAN_BRIDGES
     };
 
     [[ nodiscard ]] extern std::optional<std::list<nlbrctl::nl_bridge>> get_bridges(void) noexcept;

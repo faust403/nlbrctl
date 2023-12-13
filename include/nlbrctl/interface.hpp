@@ -4,23 +4,23 @@
 
 namespace nlbrctl {
     class interface {
-        std::string name__;
+        std::string _name;
 
         public:
             interface(std::string const& name) noexcept:
-                name__(name)
+                _name(name)
             { }
 
             operator std::string(void) const noexcept {
-                return name__;
+                return _name;
             }
 
             operator const char*(void) const noexcept {
-                return name__.c_str();
+                return _name.c_str();
             }
 
             const std::string& name(void) const noexcept {
-                return name__;
+                return _name;
             }
     };
 }

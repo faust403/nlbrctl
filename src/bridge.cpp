@@ -1,19 +1,15 @@
-# include <cstdlib>
-# include <string>
-# include <exception>
-# include <filesystem>
-# include <fstream>
 # include <nlbrctl/bridge.hpp>
 
-// can't be boolean because of strict policy for scandir, $ man scandir
-static int isbridge(std::filesystem::path path) {
+std::string_view sysfs_class_net("/sys/class/net/");
+
+int isbridge(std::filesystem::path path) {
 	return std::filesystem::exists(path/"bridge"); // it's necessary for /sys/devices/virtual/net/example_bridge to have 'bridge' directory
 }
 
-static int new_foreach_bridge(std::function<int(std::string)>&& iterator) {
+int new_foreach_bridge(std::function<int(std::string)>&& iterator) {
 	int count = 0;
 
-	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(SYSFS_CLASS_NET)) {
+	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(sysfs_class_net)) {
 		if(isbridge(dir_entry.path())) {
 			count += 1;
 
@@ -25,7 +21,7 @@ static int new_foreach_bridge(std::function<int(std::string)>&& iterator) {
 	return count;
 }
 
-static int fetch_int(std::filesystem::path const& path) noexcept {
+int fetch_int(std::filesystem::path const& path) noexcept {
 	std::ifstream file(path, std::ios::in);
 
 	if(not file.is_open()) {
@@ -38,7 +34,8 @@ static int fetch_int(std::filesystem::path const& path) noexcept {
 	return value;
 }
 
-static inline void __jiffies_to_tv(struct timeval *tv, unsigned long jiffies) {
+void fetch_tv(std::filesystem::path const& path, struct timeval* tv) {
+	unsigned long jiffies = fetch_int(path);
 	unsigned long long tvusec;
 
 	tvusec = 10000ULL * jiffies;
@@ -46,11 +43,7 @@ static inline void __jiffies_to_tv(struct timeval *tv, unsigned long jiffies) {
 	tv->tv_usec = tvusec - 1000000 * tv->tv_sec;
 }
 
-static void fetch_tv(std::filesystem::path const& path, struct timeval* tv) {
-	__jiffies_to_tv(tv, fetch_int(path));
-}
-
-static nlbrctl::nl_bridge::bridge_id_t fetch_id(std::filesystem::path const& path) {
+nlbrctl::nl_bridge::bridge_id_t fetch_id(std::filesystem::path const& path) {
 	nlbrctl::nl_bridge::bridge_id_t id;
 	std::ifstream file(path, std::ios::in);
 
@@ -69,9 +62,9 @@ static nlbrctl::nl_bridge::bridge_id_t fetch_id(std::filesystem::path const& pat
 	return id;
 }
 
-static std::optional<nlbrctl::nl_bridge::bridge_t> get_bridge_info(std::string const& name) noexcept {
+std::optional<nlbrctl::nl_bridge::bridge_t> get_bridge_info(std::string const& name) noexcept {
 	nlbrctl::nl_bridge::bridge_t info;
-	std::filesystem::path path(SYSFS_CLASS_NET);
+	std::filesystem::path path(sysfs_class_net);
 
 	path /= name + "/bridge/";
 
@@ -103,7 +96,7 @@ static std::optional<nlbrctl::nl_bridge::bridge_t> get_bridge_info(std::string c
 	return info;
 }
 
-std::optional<std::list<nlbrctl::nl_bridge>> nlbrctl::get_bridges(void) noexcept {
+std::optional<std::list<nlbrctl::nl_bridge>> nlbrctl::get_bridges() noexcept {
     std::list<nlbrctl::nl_bridge> result;
 
 	new_foreach_bridge([&result](std::string name) -> int {
@@ -117,9 +110,9 @@ std::optional<std::list<nlbrctl::nl_bridge>> nlbrctl::get_bridges(void) noexcept
     return result;
 }
 
-static int foreach_bridge_interfaces(std::string const& brname, std::function<int(std::string)>&& callback) noexcept {
+int foreach_bridge_interfaces(std::string const& brname, std::function<int(std::string)>&& callback) noexcept {
 	int count = 0;
-	std::filesystem::path path = SYSFS_CLASS_NET;
+	std::filesystem::path path = sysfs_class_net;
 
 	path /= brname + "/brif/";
 
@@ -127,7 +120,7 @@ static int foreach_bridge_interfaces(std::string const& brname, std::function<in
 		return -1;
 	}
 
-	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(SYSFS_CLASS_NET)) {
+	for(const std::filesystem::directory_entry& dir_entry : std::filesystem::recursive_directory_iterator(sysfs_class_net)) {
 		count += 1;
 
 		if(callback(dir_entry.path().stem())) {
@@ -138,32 +131,32 @@ static int foreach_bridge_interfaces(std::string const& brname, std::function<in
 	return count;
 }
 
-void nlbrctl::nl_bridge::update_interfaces(void) noexcept {
-	if(not enabled__) {
+void nlbrctl::nl_bridge::update_interfaces() noexcept {
+	if(not _enabled) {
 		return;
 	}
 
-	interfaces__.clear();
+	_interfaces.clear();
 
-	foreach_bridge_interfaces(this->name__, [&](std::string port) -> int {
-		interfaces__.emplace_front(port);
+	foreach_bridge_interfaces(this->_name, [&](std::string port) -> int {
+		_interfaces.emplace_front(port);
 		return 0;
 	});
 }
 
-void nlbrctl::nl_bridge::open(void) noexcept {
-	if(enabled__) {
+void nlbrctl::nl_bridge::open() noexcept {
+	if(_enabled) {
 		return;
 	}
 
-	connector__.add_bridge(name__);
+	_connector.add_bridge(_name);
 }
 
-void nlbrctl::nl_bridge::close(void) noexcept {
-	if(not enabled__) {
+void nlbrctl::nl_bridge::close() noexcept {
+	if(not _enabled) {
 		return;
 	}
 
-	interfaces__.clear();
-	connector__.del_bridge(name__);
+	_interfaces.clear();
+	_connector.del_bridge(_name);
 }

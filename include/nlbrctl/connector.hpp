@@ -1,36 +1,34 @@
 # pragma once
 
-#include <linux/netlink.h>
-# include <string>
-# include <cstdint>
-# include <cassert>
-# include <cstdint>
+# include <memory>
 # include <optional>
+# include <iostream>
 # include <functional>
 
-# include <stdio.h>
-# include <stdlib.h>
-# include <unistd.h>
-# include <errno.h>
-# include <string.h>
-# include <dirent.h>
-# include <sys/socket.h>
-# include <sys/types.h>
-# include <sys/stat.h>
+# include <net/if.h>
 
+# include <linux/netlink.h>
 # include <linux/rtnetlink.h>
 # include <netlink/socket.h>
 # include <netlink/route/link/bridge.h>
+# include <netlink/route/addr.h>
+# include <netlink/route/rtnl.h>
+# include <netlink/route/route.h>
 
 namespace nlbrctl {
     class connector {
-        struct nl_sock* socket__;
-        struct nlmsghdr header__;
+        struct _nl_sock_d_t {
+            void operator()(struct nl_sock* p) const
+            {
+                nl_socket_free(p);
+            };
+        };
+
+        std::unique_ptr<struct nl_sock, _nl_sock_d_t> _socket;
+        struct nlmsghdr _header;
 
         public:
             connector(void) noexcept;
-
-            ~connector(void) noexcept;
 
             void add_bridge(std::string) noexcept;
             void del_bridge(std::string) noexcept;
